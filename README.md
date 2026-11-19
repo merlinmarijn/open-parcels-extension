@@ -4,6 +4,13 @@
     <img alt="Open Parcels" src="https://raw.githubusercontent.com/open-parcels/open-parcels/master/docs/branding/banner-on-light.png" width="640">
   </picture>
 </p>
+<p align="center">
+  <a href="https://github.com/open-parcels/open-parcels-extension/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/open-parcels/open-parcels-extension?include_prereleases&sort=semver"></a>
+  <a href="https://github.com/open-parcels/open-parcels-extension/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/open-parcels/open-parcels-extension/total"></a>
+  <a href="https://github.com/open-parcels/open-parcels-extension/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/open-parcels/open-parcels-extension?style=flat"></a>
+  <a href="https://github.com/open-parcels/open-parcels-extension/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/open-parcels/open-parcels-extension"></a>
+</p>
+
 # open-parcels companion extension
 
 Some parcel carriers (for example DHL Germany) only offer a phone-app sign-in. Its last step
