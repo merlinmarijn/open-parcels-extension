@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Companion browser extension for the open-parcels web UI: catches phone-app sign-in redirects.",
-  "license": "MIT",
+  "license": "Unlicense",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",

@@ -80,4 +80,4 @@ npm run check        # all of the above
 
 ## License
 
-MIT
+Released into the public domain under [the Unlicense](LICENSE).
