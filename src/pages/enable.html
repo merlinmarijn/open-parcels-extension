@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>open-parcels: enable on this site?</title>
+    <link rel="stylesheet" href="pages.css" />
+  </head>
+  <body>
+    <header><img src="icons/icon-32.png" alt="" width="32" height="32" /><h1>open-parcels</h1></header>
+    <p id="question"></p>
+    <p id="insecure" class="warning" hidden>This address uses plain http. Anyone on your network path could see or change the page and drive the extension. Only enable it for an open-parcels server on your own local network.</p>
+    <p class="note">The extension then runs a small bridge on this address only. Each sign-in the page asks for still needs your approval (or an "always allow" for that carrier). The browser will ask for access to this site; the page is reloaded afterwards.</p>
+    <div class="buttons">
+      <button id="cancel" type="button">Cancel</button>
+      <button id="enable" type="button" class="primary">Enable</button>
+    </div>
+    <p class="note" id="status"></p>
+    <script src="enable.js"></script>
+  </body>
+</html>

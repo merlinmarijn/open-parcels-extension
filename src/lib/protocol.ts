@@ -1,4 +1,5 @@
 /** Page protocol v1, see docs/extension-protocol.md in the open-parcels repository. */
+import { isRecord } from "./storage.js";
 
 export const PROTOCOL_VERSION = 1;
 export const PAGE_SOURCE = "open-parcels-page";
@@ -7,7 +8,11 @@ export const CAPTURE_TIMEOUT_MS = 15 * 60 * 1000;
 export const RESUME_DELAY_MS = 3000;
 export const MAX_RESUMES = 3;
 
-export type CancelReason = "closed" | "denied" | "invalid" | "timeout";
+/**
+ * `busy` (another approval for this page is open, or the tab is not active) and `error` (the
+ * extension could not open the window) are additions; pages that predate them show a generic text.
+ */
+export type CancelReason = "closed" | "denied" | "invalid" | "timeout" | "busy" | "error";
 
 export interface HelloFromPage {
   source: typeof PAGE_SOURCE;
@@ -33,9 +38,6 @@ export type ExtensionMessage =
   | { source: typeof EXTENSION_SOURCE; type: "captured"; requestId: string; url: string }
   | { source: typeof EXTENSION_SOURCE; type: "cancelled"; requestId: string; reason: CancelReason };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 const MAX_ID_LENGTH = 200;
 const MAX_URL_LENGTH = 8192;
@@ -72,18 +74,37 @@ export function parsePageMessage(data: unknown): PageMessage | null {
   }
 }
 
+/**
+ * A window message the page posted to itself: same window object and same origin. Everything else
+ * (other frames, other windows, opener tricks) is ignored.
+ */
+export function isOwnWindowMessage(
+  event: { source: unknown; origin: string },
+  self: { location: { origin: string } },
+): boolean {
+  return event.source === self && event.origin === self.location.origin;
+}
+
 function parseUrl(value: string): URL | null {
   if (value.length === 0 || value.length > MAX_URL_LENGTH) return null;
   try {
     return new URL(value);
   } catch {
+    // Unparseable input is simply not a usable URL.
     return null;
   }
 }
 
-export function isHttpsUrl(value: string): boolean {
+/** An http(s) URL with a host (https only when `httpsOnly`), or null. */
+export function parseHttpUrl(value: string, httpsOnly: boolean): URL | null {
   const url = parseUrl(value);
-  return url !== null && url.protocol === "https:" && url.hostname.length > 0;
+  if (url === null || url.hostname.length === 0) return null;
+  if (url.protocol === "https:" || (!httpsOnly && url.protocol === "http:")) return url;
+  return null;
+}
+
+export function isHttpsUrl(value: string): boolean {
+  return parseHttpUrl(value, true) !== null;
 }
 
 const FORBIDDEN_PREFIX_SCHEMES = new Set(["javascript:", "data:", "blob:", "file:", "about:"]);
@@ -100,10 +121,7 @@ export function isValidRedirectPrefix(value: string): boolean {
   const protocol = `${scheme[1].toLowerCase()}:`;
   if (FORBIDDEN_PREFIX_SCHEMES.has(protocol)) return false;
   if (value.length <= protocol.length) return false;
-  if (protocol === "http:" || protocol === "https:") {
-    const url = parseUrl(value);
-    return url !== null && url.hostname.length > 0;
-  }
+  if (protocol === "http:" || protocol === "https:") return parseHttpUrl(value, false) !== null;
   return true;
 }
 
@@ -135,10 +153,8 @@ export function hostPermissionOrigins(message: CaptureFromPage): string[] {
   const origins = new Set<string>();
   for (const candidate of [message.url, message.resumeUrl, message.redirectPrefix]) {
     if (candidate === null) continue;
-    const url = parseUrl(candidate);
-    if (url !== null && (url.protocol === "https:" || url.protocol === "http:") && url.hostname.length > 0) {
-      origins.add(`${url.protocol}//${url.hostname}/*`);
-    }
+    const url = parseHttpUrl(candidate, false);
+    if (url !== null) origins.add(`${url.protocol}//${url.hostname}/*`);
   }
   return [...origins];
 }

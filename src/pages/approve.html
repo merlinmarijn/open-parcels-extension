@@ -2,21 +2,29 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>open-parcels: allow?</title>
+    <title>open-parcels: allow this sign-in?</title>
     <link rel="stylesheet" href="pages.css" />
   </head>
   <body>
     <header><img src="icons/icon-32.png" alt="" width="32" height="32" /><h1>open-parcels</h1></header>
     <p id="question"></p>
+    <dl>
+      <dt>Page</dt><dd id="origin"></dd>
+      <dt>Opens</dt><dd id="sign-in"></dd>
+      <dt>Receives</dt><dd id="target"></dd>
+    </dl>
+    <p id="insecure" class="warning" hidden>This page uses plain http. Anyone on your network path could see or change it. Only allow this on your own local network.</p>
     <div id="hosts-block">
-      <p>To catch the sign-in redirect it also needs to see requests to:</p>
+      <p>To catch the redirect reliably, the browser will also ask to let the extension see requests to these sign-in hosts. If you refuse, the sign-in still opens, but a phone-app redirect may be missed; you will not be asked again for them.</p>
       <ul id="hosts"></ul>
     </div>
-    <p class="note">The extension never sees your password. It only hands the final sign-in address back to this open-parcels page.</p>
+    <p class="note">The extension never sees your password. The page receives the final sign-in address (it contains a one-time sign-in code) and nothing else.</p>
     <div class="buttons">
       <button id="deny" type="button">Deny</button>
-      <button id="allow" type="button" class="primary">Allow</button>
+      <button id="once" type="button">Allow once</button>
+      <button id="always" type="button" class="primary">Always allow</button>
     </div>
+    <p class="note" id="always-note"></p>
     <script src="approve.js"></script>
   </body>
 </html>

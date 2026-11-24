@@ -1,30 +1,38 @@
-import browser from "webextension-polyfill";
-import { OriginStore } from "../lib/origins.js";
+import { originTrust } from "../lib/origins.js";
 
-export const store = new OriginStore(browser.storage.local);
+export interface ListEntry {
+  label: string;
+  /** Called by the entry's button; omitted: no button. */
+  action?: { text: string; run: () => Promise<void> };
+}
 
-/** Renders the approved origins into `list`, optionally with a revoke button per entry. */
-export async function renderOrigins(list: HTMLElement, revocable: boolean): Promise<void> {
-  const approved = await store.list();
+/** Labels an origin, marking plain-http ones (EX-015). */
+export function originLabel(origin: string): string {
+  return originTrust(origin) === "secure" ? origin : `${origin} (plain http)`;
+}
+
+/** Renders `entries` into `list`; `onError` receives a failed action. */
+export function renderList(list: HTMLElement, entries: ListEntry[], empty: string, onError: (error: unknown) => void): void {
   list.replaceChildren();
-  if (approved.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "empty";
-    empty.textContent = "No approved open-parcels addresses yet.";
-    list.append(empty);
+  if (entries.length === 0) {
+    const item = document.createElement("li");
+    item.className = "empty";
+    item.textContent = empty;
+    list.append(item);
     return;
   }
-  for (const origin of approved) {
+  for (const entry of entries) {
     const item = document.createElement("li");
     const label = document.createElement("span");
-    label.textContent = origin;
+    label.textContent = entry.label;
     item.append(label);
-    if (revocable) {
+    const action = entry.action;
+    if (action !== undefined) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "Revoke";
+      button.textContent = action.text;
       button.addEventListener("click", () => {
-        void store.revoke(origin).then(() => renderOrigins(list, revocable));
+        action.run().catch(onError);
       });
       item.append(button);
     }

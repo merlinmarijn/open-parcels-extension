@@ -6,9 +6,19 @@
     <link rel="stylesheet" href="pages.css" />
   </head>
   <body>
-    <header><img src="icons/icon-32.png" alt="" width="32" height="32" /><h1>Approved open-parcels addresses</h1></header>
-    <p class="note">These pages may ask the extension to open a carrier sign-in and receive its final address. Revoking takes effect immediately.</p>
+    <header><img src="icons/icon-32.png" alt="" width="32" height="32" /><h1>open-parcels extension</h1></header>
+    <h2>Enabled open-parcels addresses</h2>
+    <p class="note">These pages may ask the extension to open a carrier sign-in and receive its final address. Revoking takes effect immediately: running sign-ins from that address stop, and its site access and "always allow" choices are removed.</p>
     <ul id="origins" class="origins"></ul>
+    <h2>Always allowed sign-ins</h2>
+    <ul id="grants" class="origins"></ul>
+    <h2>Site access granted to the extension</h2>
+    <p class="note">Carrier sign-in hosts (so redirects are seen) and enabled open-parcels addresses.</p>
+    <ul id="hosts" class="origins"></ul>
+    <h2>Site access you refused</h2>
+    <p class="note">The extension does not ask for these again. Forget one to be asked next time.</p>
+    <ul id="declined" class="origins"></ul>
+    <p class="note" id="status"></p>
     <script src="options.js"></script>
   </body>
 </html>

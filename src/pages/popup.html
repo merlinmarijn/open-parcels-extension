@@ -7,10 +7,13 @@
   </head>
   <body class="popup">
     <header><img src="icons/icon-32.png" alt="" width="32" height="32" /><h1>open-parcels <small id="version"></small></h1></header>
-    <h2>Approved addresses</h2>
+    <p id="here" class="note"></p>
+    <button id="enable" type="button" class="primary" hidden>Enable on this site…</button>
+    <h2>Enabled addresses</h2>
     <ul id="origins" class="origins"></ul>
     <button id="options" type="button">Manage…</button>
     <p class="note">No tracking, no analytics, no network calls.</p>
+    <p class="note" id="status"></p>
     <script src="popup.js"></script>
   </body>
 </html>

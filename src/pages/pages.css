@@ -14,3 +14,7 @@ ul { padding-left: 18px; word-break: break-all; }
 .buttons { display: flex; justify-content: flex-end; gap: 8px; }
 button { padding: 4px 12px; }
 button.primary { font-weight: 600; }
+.warning { border-left: 3px solid #d97706; padding: 4px 8px; background: rgb(217 119 6 / 12%); }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; word-break: break-all; }
+dt { opacity: 0.75; }
+dd { margin: 0; font-family: ui-monospace, monospace; }

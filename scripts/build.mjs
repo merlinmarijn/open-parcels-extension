@@ -14,10 +14,11 @@ const entries = {
   background: "src/background.ts",
   content: "src/content.ts",
   approve: "src/pages/approve.ts",
+  enable: "src/pages/enable.ts",
   options: "src/pages/options.ts",
   popup: "src/pages/popup.ts",
 };
-const staticFiles = ["approve.html", "options.html", "popup.html", "pages.css"];
+const staticFiles = ["approve.html", "enable.html", "options.html", "popup.html", "pages.css"];
 const iconSizes = [16, 32, 48, 128];
 
 const targets = {

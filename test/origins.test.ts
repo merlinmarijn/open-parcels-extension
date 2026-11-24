@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OriginStore, STORAGE_KEY, isSameOrigin, normaliseOrigin, type KeyValueArea } from "../src/lib/origins.js";
-
-function memoryArea(initial: Record<string, unknown> = {}): KeyValueArea & { data: Record<string, unknown> } {
-  const data = { ...initial };
-  return {
-    data,
-    get: (key) => Promise.resolve(key in data ? { [key]: data[key] } : {}),
-    set: (items) => {
-      Object.assign(data, items);
-      return Promise.resolve();
-    },
-  };
-}
+import { OriginStore, STORAGE_KEY, isSameOrigin, normaliseOrigin, originPattern, originTrust } from "../src/lib/origins.js";
+import { memoryArea } from "./fakes.js";
 
 describe("normaliseOrigin", () => {
   it("reduces to scheme://host[:port]", () => {
@@ -67,5 +56,49 @@ describe("isSameOrigin (EX-001: results only go to the origin that asked)", () =
   it("refuses unknown or non-http addresses", () => {
     expect(isSameOrigin(undefined, origin)).toBe(false);
     expect(isSameOrigin("about:blank", origin)).toBe(false);
+  });
+});
+
+describe("originTrust (EX-015)", () => {
+  it("https is secure", () => {
+    expect(originTrust("https://parcels.example.invalid")).toBe("secure");
+  });
+  it("plain http only on loopback and the local network", () => {
+    for (const origin of [
+      "http://localhost:8080",
+      "http://127.0.0.1",
+      "http://192.168.2.11:3000",
+      "http://10.0.0.5",
+      "http://172.20.1.1",
+      "http://[::1]:8080",
+      "http://[fd00::1]",
+      "http://nas:8080",
+      "http://parcels.local",
+      "http://parcels.home.arpa",
+    ]) {
+      expect(originTrust(origin), origin).toBe("local-http");
+    }
+  });
+  it("refuses public plain http and non-origins", () => {
+    for (const origin of ["http://parcels.example.invalid", "http://8.8.8.8", "http://172.32.0.1", "ftp://nas", "nope"]) {
+      expect(originTrust(origin), origin).toBe("refused");
+    }
+  });
+});
+
+describe("originPattern", () => {
+  it("drops the port, which match patterns cannot carry", () => {
+    expect(originPattern("http://192.168.2.11:3000")).toBe("http://192.168.2.11/*");
+  });
+});
+
+describe("OriginStore.approve", () => {
+  it("refuses public plain-http origins", async () => {
+    await expect(new OriginStore(memoryArea()).approve("http://parcels.example.invalid")).rejects.toThrow();
+  });
+  it("does not lose concurrent approvals (EX-012)", async () => {
+    const store = new OriginStore(memoryArea());
+    await Promise.all([store.approve("https://a.example.invalid"), store.approve("https://b.example.invalid")]);
+    expect(await store.list()).toEqual(["https://a.example.invalid", "https://b.example.invalid"]);
   });
 });

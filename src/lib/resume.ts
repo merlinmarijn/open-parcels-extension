@@ -3,7 +3,6 @@ import { MAX_RESUMES } from "./protocol.js";
 export interface ResumeState {
   resumeUrl: string | null;
   resumes: number;
-  done: boolean;
 }
 
 /**
@@ -11,7 +10,7 @@ export interface ResumeState {
  * Returns the address to navigate to, or null when nothing should happen.
  */
 export function resumeTarget(state: ResumeState): string | null {
-  if (state.done || state.resumeUrl === null) return null;
+  if (state.resumeUrl === null) return null;
   if (state.resumes >= MAX_RESUMES) return null;
   return state.resumeUrl;
 }

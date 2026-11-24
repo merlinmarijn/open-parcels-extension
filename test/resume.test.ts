@@ -5,15 +5,14 @@ const url = "https://login.carrier.example.invalid/resume";
 
 describe("resumeTarget", () => {
   it("resumes while under the limit", () => {
-    expect(resumeTarget({ resumeUrl: url, resumes: 0, done: false })).toBe(url);
-    expect(resumeTarget({ resumeUrl: url, resumes: 2, done: false })).toBe(url);
+    expect(resumeTarget({ resumeUrl: url, resumes: 0 })).toBe(url);
+    expect(resumeTarget({ resumeUrl: url, resumes: 2 })).toBe(url);
   });
   it("stops after three resumes", () => {
-    expect(resumeTarget({ resumeUrl: url, resumes: 3, done: false })).toBeNull();
+    expect(resumeTarget({ resumeUrl: url, resumes: 3 })).toBeNull();
   });
-  it("never resumes without resumeUrl or after a capture", () => {
-    expect(resumeTarget({ resumeUrl: null, resumes: 0, done: false })).toBeNull();
-    expect(resumeTarget({ resumeUrl: url, resumes: 0, done: true })).toBeNull();
+  it("never resumes without resumeUrl", () => {
+    expect(resumeTarget({ resumeUrl: null, resumes: 0 })).toBeNull();
   });
 });
 

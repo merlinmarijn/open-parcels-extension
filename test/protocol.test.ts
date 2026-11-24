@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hostPermissionOrigins,
+  isOwnWindowMessage,
   isValidRedirectPrefix,
   matchesPrefix,
   parsePageMessage,
@@ -104,5 +105,14 @@ describe("hostPermissionOrigins", () => {
     expect(
       hostPermissionOrigins(capture({ resumeUrl: "https://resume.example.invalid/x" })),
     ).toEqual(["https://login.carrier.example.invalid/*", "https://resume.example.invalid/*"]);
+  });
+});
+
+describe("isOwnWindowMessage", () => {
+  const self = { location: { origin: "https://parcels.example.invalid" } };
+  it("accepts only messages the page posted to itself", () => {
+    expect(isOwnWindowMessage({ source: self, origin: "https://parcels.example.invalid" }, self)).toBe(true);
+    expect(isOwnWindowMessage({ source: {}, origin: "https://parcels.example.invalid" }, self)).toBe(false);
+    expect(isOwnWindowMessage({ source: self, origin: "https://evil.example.invalid" }, self)).toBe(false);
   });
 });
