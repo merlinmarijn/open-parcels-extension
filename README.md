@@ -28,38 +28,58 @@ in the open-parcels repository.
 ## Privacy
 
 - You sign in on the carrier's own page. The extension never reads page content, forms or
-  passwords; it only looks at the **addresses** loaded in the one sign-in tab it opened.
-- The only thing stored is the list of open-parcels addresses (origins) you approved. Revoke them
-  in the options page. Captured sign-in addresses live in memory only until they are handed over.
-  While a sign-in runs, its bookkeeping (tab id, request id, prefix, deadline; never the captured
-  address) is mirrored to `storage.session`, which is memory-only, so a Chromium service-worker
-  restart does not lose the sign-in.
+  passwords; it only acts on the **addresses** loaded in the one sign-in tab it opened (its
+  webRequest listeners see main-frame requests to hosts you granted and ignore every other tab).
+- Stored in `storage.local`: the open-parcels addresses (origins) you enabled, the sign-ins you
+  chose to *always allow* (page origin + sign-in host + redirect target), and the sign-in hosts
+  whose site access you refused (so you are not asked again). All of it is listed and removable
+  in the options page.
+- While a sign-in runs, its bookkeeping (tab and window ids, request id, the page's request,
+  deadline) lives in `storage.session`, which is memory-only, so a Chromium service-worker restart
+  does not lose it. The captured address itself is never stored; it is handed over and forgotten.
 - No tracking, no analytics, no network requests of its own.
 
 ## Permissions
 
 | Permission | Why |
 | --- | --- |
-| `storage` | Approved origins (`storage.local`), running sign-ins (`storage.session`, memory only). |
-| `tabs` | Open/close the sign-in window and read the address it navigates to (`tabs.onUpdated`). |
-| `webNavigation` | See main-frame navigations and failed navigations (custom schemes) in the sign-in tab. |
-| `webRequest` | See redirects (`onBeforeRedirect` → `redirectUrl`), the only place a refused `dhllogin://` redirect is reliably visible; detect the POST that triggers the resume rule. Observing only, no blocking. |
-| optional host permissions (`https://*/*`, `http://*/*`) | `webRequest` only reports requests to hosts the extension may access. Nothing is granted at install; when a capture starts, the approval window asks for just the carrier's sign-in host(s) (`permissions.request`, from the Allow click). Without it the extension still watches via `webNavigation`/`tabs`, but may miss custom-scheme redirects. |
-| content script on `<all_urls>` | The open-parcels web UI can be self-hosted at any address. The script does nothing unless the page has `<meta name="open-parcels" content="web-ui">`; then it only relays `window.postMessage` messages. |
+| `storage` | See Privacy. |
+| `tabs` | Open/close the sign-in window, read the address it navigates to (`tabs.onUpdated`), and check that the open-parcels tab still shows the address that asked before handing the result over. |
+| `webNavigation` | See main-frame navigations and failed navigations (custom schemes) in the sign-in tab; notice when the open-parcels tab navigates away (its request is then dropped). |
+| `webRequest` | See main-frame redirects (`onBeforeRedirect` → `redirectUrl`), the only place a refused `dhllogin://` redirect is reliably visible; detect the POST that triggers the resume rule. Observing only, no blocking. |
+| `alarms` | Sign-in and approval deadlines that survive a stopped service worker. |
+| `scripting` | Register the small page bridge for the addresses you enabled, and only those. |
+| optional host permissions (`https://*/*`, `http://*/*`) | Nothing is granted at install. Enabling an open-parcels address asks for that address only; approving a sign-in asks for the carrier's sign-in host(s), so `webRequest` can see its redirects. Refusing the carrier hosts still works through `webNavigation`/`tabs`, but may miss custom-scheme redirects. |
 
-Firefox note: in MV3 Firefox treats content-script matches as host permissions the user may
-toggle in `about:addons`; if site access is withheld, the open-parcels page won't detect the extension.
+There is no content script on all sites: other pages cannot reach or even detect the extension.
+
+## Enabling it for your open-parcels server
+
+1. Open your open-parcels web UI, click the extension's toolbar button and choose **Enable on
+   this site…**, then allow the browser's site-access prompt. The page reloads.
+2. Only `https` addresses, or plain `http` on your own network (localhost, private IP ranges,
+   `.local`/`.lan`/`.home.arpa`/`.internal` and single-label names such as `http://nas:8080`),
+   can be enabled; plain http gets a warning.
+
+**Home Assistant:** the add-on's ingress panel shows the web UI in a frame on the Home
+Assistant address, which every other add-on and panel shares. The extension deliberately only
+works in top-level pages of an enabled address, so it does not work inside the ingress panel.
+Open the web UI in its own tab on its own address instead (for example its direct port or
+reverse-proxy address) and enable that.
 
 ## Build
 
 ```sh
-npm install
+npm ci
 npm run build        # dist/firefox and dist/chromium (icons rendered from assets/logo.svg)
 npm test             # vitest, pure logic
 npm run lint         # eslint + tsc --noEmit
 npm run lint:firefox # web-ext lint on dist/firefox
 npm run check        # all of the above
+npm run package      # check, then release/*.zip for AMO, the Chrome Web Store, and the sources
 ```
+
+Node 20 or newer; the build is unminified for store review.
 
 ## Load unpacked
 
@@ -70,13 +90,20 @@ npm run check        # all of the above
 
 ## How a capture runs
 
-1. The open-parcels page sends `capture` with the sign-in `url`, a `redirectPrefix` and an
-   optional `resumeUrl`.
-2. First time for that page origin (or when the carrier host isn't granted yet) a small window
-   asks *Allow &lt;origin&gt; to use the open-parcels extension?* Deny → `cancelled: denied`.
+1. On an enabled address the open-parcels page sends `capture` with the sign-in `url`, a
+   `redirectPrefix` and an optional `resumeUrl`. Only the active tab can start one; one request
+   per tab and one open approval per address at a time (others get `cancelled: busy`).
+2. Unless you chose *Always allow* for this address, sign-in host and redirect target, a small
+   window shows the page, the sign-in host it opens and the address it will receive, with
+   **Deny**, **Allow once** and **Always allow**. Deny → `cancelled: denied`, and further
+   requests from that address are refused without asking for 10 minutes. Closing the window
+   counts as Deny; after 5 minutes → `cancelled: timeout`.
 3. The sign-in opens in its own popup window. The first address in that tab that starts with
-   `redirectPrefix` closes the window and is sent back as `captured`.
-4. Closing the window → `cancelled: closed`; after 15 minutes → `cancelled: timeout`.
+   `redirectPrefix` closes the window and is sent back as `captured`, but only if the
+   open-parcels tab still shows the address that asked; otherwise it is dropped.
+4. Closing the window → `cancelled: closed`; after 15 minutes → `cancelled: timeout`; a window
+   that cannot be opened → `cancelled: error`. Reloading or leaving the open-parcels page, or
+   revoking the address, ends the sign-in silently.
 
 ## License
 
