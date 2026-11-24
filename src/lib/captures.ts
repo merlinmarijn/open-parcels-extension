@@ -406,9 +406,7 @@ export class CaptureManager {
   }
 
   private async state(): Promise<State> {
-    if (this.cached === null) {
-      this.cached = parseState((await this.deps.session.get(STATE_KEY))[STATE_KEY]);
-    }
+    this.cached ??= parseState((await this.deps.session.get(STATE_KEY))[STATE_KEY]);
     return this.cached;
   }
 

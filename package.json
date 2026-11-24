@@ -5,13 +5,18 @@
   "description": "Companion browser extension for the open-parcels web UI: catches phone-app sign-in redirects.",
   "license": "Unlicense",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.20.0",
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && tsc --noEmit",
     "lint:firefox": "web-ext lint --source-dir dist/firefox --self-hosted",
     "test": "vitest run",
-    "check": "npm run lint && npm test && npm run build && npm run lint:firefox"
+    "check": "npm run lint && npm test && npm run build && npm run lint:firefox",
+    "package": "npm run check && web-ext build -s dist/firefox -a release -n open-parcels-firefox-$npm_package_version.zip --overwrite-dest && web-ext build -s dist/chromium -a release -n open-parcels-chromium-$npm_package_version.zip --overwrite-dest && git archive --format=zip -o release/open-parcels-extension-source-$npm_package_version.zip HEAD"
   },
   "dependencies": {
     "webextension-polyfill": "^0.12.0"
