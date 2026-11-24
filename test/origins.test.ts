@@ -46,7 +46,7 @@ describe("OriginStore", () => {
 describe("isSameOrigin (EX-001: results only go to the origin that asked)", () => {
   const origin = "https://parcels.example.invalid";
   it("accepts any address of the requesting origin", () => {
-    expect(isSameOrigin("https://parcels.example.invalid/sources/dhl", origin)).toBe(true);
+    expect(isSameOrigin("https://parcels.example.invalid/connections/dhl", origin)).toBe(true);
   });
   it("refuses another origin now loaded in the same tab", () => {
     expect(isSameOrigin("https://evil.example.invalid/", origin)).toBe(false);

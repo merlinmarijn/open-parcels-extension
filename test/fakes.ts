@@ -39,7 +39,7 @@ export class FakeBrowser {
   time = 1_000_000;
   ids = 0;
   nextId = 100;
-  tabUrls = new Map<number, string>([[PAGE.tabId, `${PAGE_ORIGIN}/sources`]]);
+  tabUrls = new Map<number, string>([[PAGE.tabId, `${PAGE_ORIGIN}/connections`]]);
   posted: { page: PageTarget; message: ExtensionMessage }[] = [];
   openedApprovals: { query: URLSearchParams; opened: Opened }[] = [];
   openedSignIns: Opened[] = [];

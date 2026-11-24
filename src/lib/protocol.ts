@@ -127,7 +127,7 @@ export function isValidRedirectPrefix(value: string): boolean {
 
 /**
  * Rule 2 plus a sanity guard: a prefix the sign-in address itself already starts with would
- * "capture" the carrier's login page on first load.
+ * "capture" the carrier's sign-in page on first load.
  */
 export function validateCapture(message: CaptureFromPage): boolean {
   if (!isHttpsUrl(message.url)) return false;
