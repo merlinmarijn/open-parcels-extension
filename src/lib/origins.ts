@@ -18,6 +18,11 @@ export function normaliseOrigin(value: string): string | null {
   }
 }
 
+/** Whether `url` (a tab's current address) is a document of exactly `origin`. */
+export function isSameOrigin(url: string | undefined, origin: string): boolean {
+  return url !== undefined && normaliseOrigin(url) === origin;
+}
+
 export class OriginStore {
   constructor(private readonly area: KeyValueArea) {}
 

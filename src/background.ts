@@ -3,8 +3,8 @@
  * window, watches only that tab and hands the first address matching redirectPrefix back to the
  * open-parcels page that asked for it.
  */
-import browser, { type Runtime, type WebRequest } from "webextension-polyfill";
-import { OriginStore, normaliseOrigin } from "./lib/origins.js";
+import browser, { type Runtime, type Tabs, type WebRequest } from "webextension-polyfill";
+import { OriginStore, isSameOrigin, normaliseOrigin } from "./lib/origins.js";
 import {
   CAPTURE_TIMEOUT_MS,
   EXTENSION_SOURCE,
@@ -27,6 +27,10 @@ import { isInternalMessage, type InternalMessage } from "./lib/runtime-messages.
 interface Session {
   requestId: string;
   pageTabId: number;
+  /** The approved page origin that asked; results only ever go back to a document of this origin. */
+  pageOrigin: string;
+  /** Chromium's id of the exact page document that asked (absent in Firefox). */
+  pageDocumentId: string | null;
   signInTabId: number;
   windowId: number | null;
   redirectPrefix: string;
@@ -69,9 +73,30 @@ const restored: Promise<void> = (async () => {
   }
 })().catch(() => undefined);
 
-async function sendToPage(tabId: number, message: ExtensionMessage): Promise<void> {
-  const internal: InternalMessage = { kind: "to-page", message };
-  await browser.tabs.sendMessage(tabId, internal).catch(() => undefined);
+interface PageTarget {
+  tabId: number;
+  origin: string;
+  documentId: string | null;
+}
+
+/**
+ * Hands a message to the page that asked, never to whatever else now occupies its tab: the tab's
+ * current top-level origin must still be the requesting one, the message goes to frame 0 (and on
+ * Chromium to the exact document), and the content script posts it with that origin as
+ * targetOrigin so the browser drops it on any mismatch.
+ */
+async function sendToPage(target: PageTarget, message: ExtensionMessage): Promise<void> {
+  // tabs.get rejects once the tab is gone; then there is nobody left to tell.
+  const tab = await browser.tabs.get(target.tabId).catch(() => null);
+  if (!isSameOrigin(tab?.url, target.origin)) return;
+  const internal: InternalMessage = { kind: "to-page", targetOrigin: target.origin, message };
+  const options: Tabs.SendMessageOptionsType = { frameId: 0 };
+  if (target.documentId !== null) options.documentId = target.documentId;
+  await browser.tabs.sendMessage(target.tabId, internal, options).catch(() => undefined);
+}
+
+function pageOf(session: Session): PageTarget {
+  return { tabId: session.pageTabId, origin: session.pageOrigin, documentId: session.pageDocumentId };
 }
 
 function cancelled(requestId: string, reason: CancelReason): ExtensionMessage {
@@ -96,14 +121,14 @@ async function finish(signInTabId: number, outcome: Outcome): Promise<void> {
     else await browser.tabs.remove(signInTabId).catch(() => undefined);
   }
   if ("captured" in outcome) {
-    await sendToPage(session.pageTabId, {
+    await sendToPage(pageOf(session), {
       source: EXTENSION_SOURCE,
       type: "captured",
       requestId: session.requestId,
       url: outcome.captured,
     });
   } else if ("reason" in outcome) {
-    await sendToPage(session.pageTabId, cancelled(session.requestId, outcome.reason));
+    await sendToPage(pageOf(session), cancelled(session.requestId, outcome.reason));
   }
 }
 
@@ -158,9 +183,11 @@ async function ensureApproved(pageOrigin: string, capture: CaptureFromPage): Pro
 
 // ---- Capture ----------------------------------------------------------------------------------
 
-async function startCapture(pageTabId: number, pageOrigin: string, capture: CaptureFromPage): Promise<void> {
+async function startCapture(page: PageTarget, capture: CaptureFromPage): Promise<void> {
+  const pageTabId = page.tabId;
+  const pageOrigin = page.origin;
   if (!validateCapture(capture)) {
-    await sendToPage(pageTabId, cancelled(capture.requestId, "invalid"));
+    await sendToPage(page, cancelled(capture.requestId, "invalid"));
     return;
   }
   await restored;
@@ -168,7 +195,7 @@ async function startCapture(pageTabId: number, pageOrigin: string, capture: Capt
     if (session.pageTabId === pageTabId && session.requestId === capture.requestId) return;
   }
   if (!(await ensureApproved(pageOrigin, capture))) {
-    await sendToPage(pageTabId, cancelled(capture.requestId, "denied"));
+    await sendToPage(page, cancelled(capture.requestId, "denied"));
     return;
   }
 
@@ -183,12 +210,14 @@ async function startCapture(pageTabId: number, pageOrigin: string, capture: Capt
     tabId = (await browser.tabs.create({ url: "about:blank", active: true })).id;
   }
   if (tabId === undefined) {
-    await sendToPage(pageTabId, cancelled(capture.requestId, "closed"));
+    await sendToPage(page, cancelled(capture.requestId, "closed"));
     return;
   }
   const session: Session = {
     requestId: capture.requestId,
     pageTabId,
+    pageOrigin,
+    pageDocumentId: page.documentId,
     signInTabId: tabId,
     windowId,
     redirectPrefix: capture.redirectPrefix,
@@ -229,7 +258,8 @@ browser.runtime.onMessage.addListener((raw: unknown, sender: Runtime.MessageSend
   const pageOrigin = senderOrigin(sender);
   if (pageTabId === undefined || pageOrigin === null || sender.frameId !== 0) return undefined;
   const message = raw.message;
-  if (message.type === "capture") void startCapture(pageTabId, pageOrigin, message);
+  const documentId = sender.documentId ?? null;
+  if (message.type === "capture") void startCapture({ tabId: pageTabId, origin: pageOrigin, documentId }, message);
   else if (message.type === "cancel") void cancelCapture(pageTabId, message.requestId);
   return undefined;
 });
@@ -284,6 +314,16 @@ browser.tabs.onRemoved.addListener((tabId) => {
     if (sessions.has(tabId)) await finish(tabId, { reason: "closed" });
     for (const session of [...sessions.values()]) {
       if (session.pageTabId === tabId) await finish(session.signInTabId, { silent: true });
+    }
+  });
+});
+
+// A new document in the page tab (navigation, reload) can never receive the result: end silently.
+browser.webNavigation.onCommitted.addListener((details) => {
+  if (details.frameId !== 0) return;
+  void restored.then(async () => {
+    for (const session of [...sessions.values()]) {
+      if (session.pageTabId === details.tabId) await finish(session.signInTabId, { silent: true });
     }
   });
 });

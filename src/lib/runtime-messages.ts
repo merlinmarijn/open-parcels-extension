@@ -3,7 +3,7 @@ import type { ExtensionMessage, PageMessage } from "./protocol.js";
 
 export type InternalMessage =
   | { kind: "page"; message: PageMessage }
-  | { kind: "to-page"; message: ExtensionMessage }
+  | { kind: "to-page"; targetOrigin: string; message: ExtensionMessage }
   | { kind: "approval-result"; approvalId: string; allowed: boolean };
 
 export function isInternalMessage(value: unknown): value is InternalMessage {

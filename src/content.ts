@@ -11,8 +11,9 @@ function isOpenParcelsPage(): boolean {
   return meta?.getAttribute("content") === "web-ui";
 }
 
-function postToPage(message: ExtensionMessage): void {
-  window.postMessage(message, window.location.origin);
+function postToPage(message: ExtensionMessage, targetOrigin: string = window.location.origin): void {
+  // targetOrigin is the origin that asked; the browser drops the message if this document differs.
+  window.postMessage(message, targetOrigin);
 }
 
 function start(): void {
@@ -34,7 +35,7 @@ function start(): void {
   });
 
   browser.runtime.onMessage.addListener((raw: unknown) => {
-    if (isInternalMessage(raw) && raw.kind === "to-page") postToPage(raw.message);
+    if (isInternalMessage(raw) && raw.kind === "to-page") postToPage(raw.message, raw.targetOrigin);
     return undefined;
   });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OriginStore, STORAGE_KEY, normaliseOrigin, type KeyValueArea } from "../src/lib/origins.js";
+import { OriginStore, STORAGE_KEY, isSameOrigin, normaliseOrigin, type KeyValueArea } from "../src/lib/origins.js";
 
 function memoryArea(initial: Record<string, unknown> = {}): KeyValueArea & { data: Record<string, unknown> } {
   const data = { ...initial };
@@ -51,5 +51,21 @@ describe("OriginStore", () => {
 
   it("refuses non-http origins", async () => {
     await expect(new OriginStore(memoryArea()).approve("file:///x")).rejects.toThrow();
+  });
+});
+
+describe("isSameOrigin (EX-001: results only go to the origin that asked)", () => {
+  const origin = "https://parcels.example.invalid";
+  it("accepts any address of the requesting origin", () => {
+    expect(isSameOrigin("https://parcels.example.invalid/sources/dhl", origin)).toBe(true);
+  });
+  it("refuses another origin now loaded in the same tab", () => {
+    expect(isSameOrigin("https://evil.example.invalid/", origin)).toBe(false);
+    expect(isSameOrigin("http://parcels.example.invalid/", origin)).toBe(false);
+    expect(isSameOrigin("https://parcels.example.invalid:8443/", origin)).toBe(false);
+  });
+  it("refuses unknown or non-http addresses", () => {
+    expect(isSameOrigin(undefined, origin)).toBe(false);
+    expect(isSameOrigin("about:blank", origin)).toBe(false);
   });
 });
