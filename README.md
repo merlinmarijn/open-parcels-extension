@@ -61,8 +61,8 @@ There is no content script on all sites: other pages cannot reach or even detect
    `.local`/`.lan`/`.home.arpa`/`.internal` and single-label names such as `http://nas:8080`),
    can be enabled; plain http gets a warning.
 
-**Home Assistant:** the add-on's ingress panel shows the web UI in a frame on the Home
-Assistant address, which every other add-on and panel shares. The extension deliberately only
+**Home Assistant:** the HA app's ingress panel shows the web UI in a frame on the Home
+Assistant address, which every other HA app and panel shares. The extension deliberately only
 works in top-level pages of an enabled address, so it does not work inside the ingress panel.
 Open the web UI in its own tab on its own address instead (for example its direct port or
 reverse-proxy address) and enable that.
