@@ -16,7 +16,8 @@
     "lint:firefox": "web-ext lint --source-dir dist/firefox --self-hosted",
     "test": "vitest run",
     "check": "npm run lint && npm test && npm run build && npm run lint:firefox",
-    "package": "npm run check && web-ext build -s dist/firefox -a release -n open-parcels-firefox-$npm_package_version.zip --overwrite-dest && web-ext build -s dist/chromium -a release -n open-parcels-chromium-$npm_package_version.zip --overwrite-dest && git archive --format=zip -o release/open-parcels-extension-source-$npm_package_version.zip HEAD"
+    "package": "npm run check && node scripts/release.mjs",
+    "sign:firefox": "web-ext sign --source-dir dist/firefox --channel listed --upload-source-code release/open-parcels-extension-source-$npm_package_version.zip --artifacts-dir release/signed"
   },
   "dependencies": {
     "webextension-polyfill": "^0.12.0"

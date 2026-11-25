@@ -76,10 +76,56 @@ npm test             # vitest, pure logic
 npm run lint         # eslint + tsc --noEmit
 npm run lint:firefox # web-ext lint on dist/firefox
 npm run check        # all of the above
-npm run package      # check, then release/*.zip for AMO, the Chrome Web Store, and the sources
+npm run package      # check, then release/: a zip per browser, the sources and SHA256SUMS
 ```
 
 Node 20 or newer; the build is unminified for store review.
+
+## Releases
+
+`npm run package` builds from a clean checkout of a commit (it refuses uncommitted changes) and
+writes to `release/`:
+
+| File | For |
+| :--- | :--- |
+| `open-parcels-firefox-<version>.zip` | addons.mozilla.org (AMO) |
+| `open-parcels-chromium-<version>.zip` | the Chrome Web Store (also Edge Add-ons) |
+| `open-parcels-extension-source-<version>.zip` | AMO's source review (every tracked file) |
+| `SHA256SUMS` | the three zips' SHA-256 |
+
+The zips are **reproducible**: entries sorted, every one stamped with the commit's time (or
+`SOURCE_DATE_EPOCH`), fixed permissions and compression, and an unminified esbuild bundle from the
+locked dependencies. Anyone can check out the tag, run `npm ci && npm run package` and compare
+with `sha256sum -c release/SHA256SUMS`. The source zip is what a reviewer builds from with the same
+two commands.
+
+### Release steps
+
+1. Bump `version` in `package.json` (the manifests take it from there), commit, tag `v<version>`.
+2. `npm ci && npm run package`; keep `release/SHA256SUMS` with the release notes.
+3. **Firefox (AMO, signed by Mozilla):** create API credentials at
+   <https://addons.mozilla.org/developers/addon/api/key/> and pass them only through the
+   environment, never in a file of this repository:
+
+   ```sh
+   WEB_EXT_API_KEY=user:12345:67 WEB_EXT_API_SECRET=… npm run sign:firefox
+   ```
+
+   This runs `web-ext sign --channel listed` on `dist/firefox`, uploads the source zip for review
+   and saves the signed `.xpi` under `release/signed/` once Mozilla has signed it (a listed version
+   can wait for review; `web-ext` then says so and the `.xpi` appears in the AMO developer hub).
+   The add-on id is `extension@open-parcels.github.io`; the first upload creates the listing, which
+   needs the description, the privacy policy (see *Privacy*) and the
+   `data_collection_permissions` the manifest already declares.
+4. **Chrome Web Store:** in the developer dashboard
+   (<https://chrome.google.com/webstore/devconsole>), *Add new item* (first release) or the item's
+   *Package → Upload new package*, and upload `open-parcels-chromium-<version>.zip`. Fill in the
+   privacy practices (single purpose, permission justifications from *Permissions*, no data
+   collected) and submit for review. The store signs the package itself; no key is kept here.
+5. **Edge Add-ons** (optional): upload the same Chromium zip at
+   <https://partner.microsoft.com/dashboard/microsoftedge/>.
+
+Signing keys and store credentials stay with the owner; `release/` and `*.pem` are ignored by git.
 
 ## Load unpacked
 
