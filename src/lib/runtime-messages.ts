@@ -26,6 +26,8 @@ function isExtensionMessage(value: unknown): value is ExtensionMessage {
       return typeof value.version === "string" && value.protocol === 1;
     case "captured":
       return isShortString(value.requestId) && isShortString(value.url);
+    case "cookies_captured":
+      return isShortString(value.requestId) && typeof value.cookie === "string" && value.cookie.length > 0 && value.cookie.length <= 32768 && !/[\r\n]/.test(value.cookie);
     case "cancelled":
       return isShortString(value.requestId) && typeof value.reason === "string";
     default:

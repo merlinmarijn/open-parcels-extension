@@ -25,6 +25,8 @@ export interface CaptureFromPage {
   url: string;
   redirectPrefix: string;
   resumeUrl: string | null;
+  /** Only Bol's order overview is supported for session capture. */
+  cookieUrl?: string;
 }
 export interface CancelFromPage {
   source: typeof PAGE_SOURCE;
@@ -34,8 +36,9 @@ export interface CancelFromPage {
 export type PageMessage = HelloFromPage | CaptureFromPage | CancelFromPage;
 
 export type ExtensionMessage =
-  | { source: typeof EXTENSION_SOURCE; type: "hello"; version: string; protocol: typeof PROTOCOL_VERSION }
+  | { source: typeof EXTENSION_SOURCE; type: "hello"; version: string; protocol: typeof PROTOCOL_VERSION; cookieCapture?: boolean }
   | { source: typeof EXTENSION_SOURCE; type: "captured"; requestId: string; url: string }
+  | { source: typeof EXTENSION_SOURCE; type: "cookies_captured"; requestId: string; cookie: string }
   | { source: typeof EXTENSION_SOURCE; type: "cancelled"; requestId: string; reason: CancelReason };
 
 
@@ -67,6 +70,7 @@ export function parsePageMessage(data: unknown): PageMessage | null {
         url: typeof data.url === "string" ? data.url : "",
         redirectPrefix: typeof data.redirectPrefix === "string" ? data.redirectPrefix : "",
         resumeUrl: typeof data.resumeUrl === "string" ? data.resumeUrl : data.resumeUrl === null ? null : "",
+        ...(data.cookieUrl === undefined ? {} : { cookieUrl: typeof data.cookieUrl === "string" ? data.cookieUrl : "" }),
       };
     }
     default:
@@ -133,6 +137,12 @@ export function validateCapture(message: CaptureFromPage): boolean {
   if (!isHttpsUrl(message.url)) return false;
   if (message.resumeUrl !== null && !isHttpsUrl(message.resumeUrl)) return false;
   if (!isValidRedirectPrefix(message.redirectPrefix)) return false;
+  if (message.cookieUrl !== undefined) {
+    return message.cookieUrl === "https://www.bol.com/nl/nl/account/bestellingen/overzicht/" &&
+      message.redirectPrefix === message.cookieUrl &&
+      message.url === "https://www.bol.com/nl/account/login.html?redirectUrl=%2Fnl%2Fnl%2Faccount%2Fbestellingen%2Foverzicht%2F" &&
+      message.resumeUrl === null;
+  }
   return !matchesPrefix(message.url, message.redirectPrefix);
 }
 

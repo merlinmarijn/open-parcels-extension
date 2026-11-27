@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "open-parcels",
-  "description": "Companion for the open-parcels web UI: hands phone-app carrier sign-in redirects back to it.",
+  "description": "Companion for Open Parcels: browser sign-in for supported carriers and shops.",
   "permissions": [
     "storage",
     "tabs",

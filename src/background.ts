@@ -159,6 +159,22 @@ browser.runtime.onMessage.addListener((raw: unknown, sender: Runtime.MessageSend
 
 const filter: WebRequest.RequestFilter = { urls: ["<all_urls>"], types: ["main_frame"] };
 const resumeTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const cookieFilter: WebRequest.RequestFilter = { urls: ["https://www.bol.com/nl/nl/account/bestellingen/overzicht/"], types: ["main_frame"] };
+const cookieHeaders = (details: WebRequest.OnBeforeSendHeadersDetailsType): void => {
+  manager.headersSent(details.tabId, details.requestId, details.url, details.requestHeaders ?? []).catch(report("cookie capture failed"));
+};
+// Chromium hides Cookie unless extraHeaders is requested. Firefox does not support that flag.
+try {
+  browser.webRequest.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders", "extraHeaders"]);
+} catch {
+  browser.webRequest.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders"]);
+}
+browser.webRequest.onCompleted.addListener(details => {
+  manager.requestCompleted(details.tabId, details.requestId, details.url, details.statusCode).catch(report("cookie capture completion failed"));
+}, cookieFilter);
+browser.webRequest.onErrorOccurred.addListener(details => {
+  manager.requestCompleted(details.tabId, details.requestId, details.url, 0).catch(report("cookie capture cleanup failed"));
+}, cookieFilter);
 
 function observe(tabId: number, address: string | undefined): void {
   if (tabId >= 0) manager.observe(tabId, address).catch(report("observe failed"));
@@ -177,6 +193,7 @@ function armResume(tabId: number): void {
 }
 
 browser.webRequest.onBeforeRedirect.addListener((details) => {
+  manager.requestCompleted(details.tabId, details.requestId, details.url, details.statusCode).catch(report("redirect cleanup failed"));
   observe(details.tabId, details.redirectUrl);
 }, filter);
 browser.webRequest.onBeforeRequest.addListener((details) => {

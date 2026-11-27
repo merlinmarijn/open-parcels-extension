@@ -15,10 +15,10 @@
     </dl>
     <p id="insecure" class="warning" hidden>This page uses plain http. Anyone on your network path could see or change it. Only allow this on your own local network.</p>
     <div id="hosts-block">
-      <p>To catch the redirect reliably, the browser will also ask to let the extension see requests to these sign-in hosts. If you refuse, the sign-in still opens, but a phone-app redirect may be missed; you will not be asked again for them.</p>
+      <p id="host-note">To catch the redirect reliably, the browser will also ask to let the extension see requests to these sign-in hosts. If you refuse, the sign-in still opens, but a phone-app redirect may be missed; you will not be asked again for them.</p>
       <ul id="hosts"></ul>
     </div>
-    <p class="note">The extension never sees your password. The page receives the final sign-in address (it contains a one-time sign-in code) and nothing else.</p>
+    <p class="note" id="privacy-note">The extension never sees your password. The page receives the final sign-in address (it contains a one-time sign-in code) and nothing else.</p>
     <div class="buttons">
       <button id="deny" type="button">Deny</button>
       <button id="once" type="button">Allow once</button>

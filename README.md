@@ -22,14 +22,23 @@ just like a pasted address. The server checks `state`, so a stray code is refuse
 Works in Firefox (incl. LibreWolf, 128+) and Chromium browsers (Chrome, Edge, Brave; 116+),
 Manifest V3, one codebase.
 
+Version 0.3.0 also signs personal Bol accounts into the dashboard. Enable the extension on your
+Open Parcels dashboard, open the Bol connection's sign-in form, and choose **Sign in with the
+extension**. Approve sharing your Bol session, then complete Bol's own login. The dashboard
+receives the Cookie header and stores it encrypted; no manual copying is needed.
+
 Protocol: [`docs/extension-protocol.md`](https://github.com/open-parcels/open-parcels/blob/main/docs/extension-protocol.md)
 in the open-parcels repository.
 
 ## Privacy
 
 - You sign in on the carrier's own page. The extension never reads page content, forms or
-  passwords; it only acts on the **addresses** loaded in the one sign-in tab it opened (its
+  passwords. Redirect sign-ins only act on the **addresses** loaded in the one sign-in tab it opened (its
   webRequest listeners see main-frame requests to hosts you granted and ignore every other tab).
+- Bol session capture requires a fresh approval each time. It reads only the Cookie request
+  header of the exact Bol order overview URL in its own sign-in tab, including HttpOnly cookies,
+  and returns it only after HTTP 200. These cookies grant access to your Bol account: allow only
+  a dashboard you trust. Captured headers are never stored in extension storage or logs.
 - Stored in `storage.local`: the open-parcels addresses (origins) you enabled, the sign-ins you
   chose to *always allow* (page origin + sign-in host + redirect target), and the sign-in hosts
   whose site access you refused (so you are not asked again). All of it is listed and removable

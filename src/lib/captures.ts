@@ -13,6 +13,7 @@ import {
   CAPTURE_TIMEOUT_MS,
   EXTENSION_SOURCE,
   matchesPrefix,
+  hostPermissionOrigins,
   validateCapture,
   type CancelReason,
   type CaptureFromPage,
@@ -78,7 +79,7 @@ export interface CaptureDeps {
   clearAlarm(name: string): Promise<void>;
 }
 
-type Outcome = { captured: string } | { reason: CancelReason } | { silent: true };
+type Outcome = { captured: string } | { cookie: string } | { reason: CancelReason } | { silent: true };
 
 export function requestKey(tabId: number, requestId: string): string {
   return `${String(tabId)}:${requestId}`;
@@ -108,7 +109,8 @@ function isCapture(value: unknown): value is CaptureFromPage {
     typeof value.requestId === "string" &&
     typeof value.url === "string" &&
     typeof value.redirectPrefix === "string" &&
-    (value.resumeUrl === null || typeof value.resumeUrl === "string")
+    (value.resumeUrl === null || typeof value.resumeUrl === "string") &&
+    (value.cookieUrl === undefined || typeof value.cookieUrl === "string")
   );
 }
 
@@ -143,6 +145,8 @@ function parseState(raw: unknown): State {
 export class CaptureManager {
   private readonly queue = new Serial();
   private cached: State | null = null;
+  /** Secrets are never persisted, including in storage.session. A reload retries capture. */
+  private readonly sentCookies = new Map<string, { key: string; cookie: string }>();
 
   constructor(private readonly deps: CaptureDeps) {}
 
@@ -168,6 +172,10 @@ export class CaptureManager {
         this.deps.log.debug("approval result for an unknown or finished request");
         return;
       }
+      if (request.capture.cookieUrl !== undefined && !hostsGranted) {
+        await this.end(request, { reason: "denied" });
+        return;
+      }
       await this.deps.consent.remember(grantFor(request.page.origin, request.capture), decision, request.hosts, hostsGranted);
       if (decision === "deny") {
         state.cooldowns[request.page.origin] = this.deps.now() + DENY_COOLDOWN_MS;
@@ -185,8 +193,30 @@ export class CaptureManager {
     if (address === undefined) return Promise.resolve();
     return this.queue.run(async () => {
       const request = (await this.state()).requests.find((item) => item.stage === "sign-in" && item.signIn?.tabId === tabId);
-      if (request !== undefined && matchesPrefix(address, request.capture.redirectPrefix)) {
+      if (request !== undefined && request.capture.cookieUrl === undefined && matchesPrefix(address, request.capture.redirectPrefix)) {
         await this.end(request, { captured: address });
+      }
+    });
+  }
+
+  /** Read only the explicitly approved sign-in tab's exact Bol overview request. */
+  headersSent(tabId: number, requestId: string, address: string, headers: readonly { name: string; value?: string }[]): Promise<void> {
+    return this.queue.run(async () => {
+      const request = await this.signInRequest(tabId);
+      if (request === undefined || !validateCapture(request.capture) || request.capture.cookieUrl !== address) return;
+      const cookie = headers.find(header => header.name.toLowerCase() === "cookie")?.value;
+      if (cookie && cookie.length <= 32768 && !/[\r\n]/.test(cookie)) this.sentCookies.set(requestId, { key: request.key, cookie });
+    });
+  }
+
+  /** Only a successful final response can finish a cookie capture; redirects never do. */
+  requestCompleted(tabId: number, requestId: string, address: string, status: number): Promise<void> {
+    return this.queue.run(async () => {
+      const sent = this.sentCookies.get(requestId);
+      this.sentCookies.delete(requestId);
+      const request = await this.signInRequest(tabId);
+      if (status === 200 && request !== undefined && sent?.key === request.key && request.capture.cookieUrl === address) {
+        await this.end(request, { cookie: sent.cookie });
       }
     });
   }
@@ -292,12 +322,12 @@ export class CaptureManager {
       deadline: this.deps.now() + APPROVAL_TIMEOUT_MS,
       approvalId: null,
       approval: null,
-      hosts: consent.hosts,
+      hosts: capture.cookieUrl === undefined ? consent.hosts : hostPermissionOrigins(capture),
       signIn: null,
       resumes: 0,
     };
     state.requests.push(request);
-    if (consent.ask) await this.askApproval(request);
+    if (consent.ask || capture.cookieUrl !== undefined) await this.askApproval(request);
     else await this.openSignIn(request);
   }
 
@@ -311,6 +341,7 @@ export class CaptureManager {
       signInHost: grant.signInHost,
       target: grant.target,
     });
+    if (request.capture.cookieUrl !== undefined) query.set("cookieCapture", "true");
     for (const host of request.hosts) query.append("host", host);
     // Persist before the window exists, so a result arriving at a restarted worker is known.
     await this.persist();
@@ -359,13 +390,16 @@ export class CaptureManager {
     const index = state.requests.indexOf(request);
     if (index < 0) return;
     state.requests.splice(index, 1);
+    for (const [id, sent] of this.sentCookies) if (sent.key === request.key) this.sentCookies.delete(id);
     await this.persist();
     await this.deps.clearAlarm(ALARM_PREFIX + request.key);
     await this.closeQuietly(request.approval);
     const signInClosedByUser = "reason" in outcome && outcome.reason === "closed";
     if (!signInClosedByUser) await this.closeQuietly(request.signIn);
     const requestId = request.capture.requestId;
-    if ("captured" in outcome) {
+    if ("cookie" in outcome) {
+      await this.deliver(request.page, { source: EXTENSION_SOURCE, type: "cookies_captured", requestId, cookie: outcome.cookie });
+    } else if ("captured" in outcome) {
       await this.deliver(request.page, { source: EXTENSION_SOURCE, type: "captured", requestId, url: outcome.captured });
     } else if ("reason" in outcome) {
       await this.deliver(request.page, cancelled(requestId, outcome.reason));

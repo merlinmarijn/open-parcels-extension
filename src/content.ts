@@ -24,7 +24,7 @@ function onWindowMessage(event: MessageEvent<unknown>): void {
   if (message === null) return;
   if (message.type === "hello") {
     postToPage(
-      { source: EXTENSION_SOURCE, type: "hello", version: browser.runtime.getManifest().version, protocol: PROTOCOL_VERSION },
+      { source: EXTENSION_SOURCE, type: "hello", version: browser.runtime.getManifest().version, protocol: PROTOCOL_VERSION, cookieCapture: true },
       window.location.origin,
     );
     return;
