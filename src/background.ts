@@ -163,19 +163,6 @@ const cookieFilter: WebRequest.RequestFilter = { urls: ["https://www.bol.com/nl/
 const cookieHeaders = (details: WebRequest.OnBeforeSendHeadersDetailsType): void => {
   manager.headersSent(details.tabId, details.requestId, details.url, details.requestHeaders ?? []).catch(report("cookie capture failed"));
 };
-// Chromium hides Cookie unless extraHeaders is requested. Firefox does not support that flag.
-try {
-  browser.webRequest.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders", "extraHeaders"]);
-} catch {
-  browser.webRequest.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders"]);
-}
-browser.webRequest.onCompleted.addListener(details => {
-  manager.requestCompleted(details.tabId, details.requestId, details.url, details.statusCode).catch(report("cookie capture completion failed"));
-}, cookieFilter);
-browser.webRequest.onErrorOccurred.addListener(details => {
-  manager.requestCompleted(details.tabId, details.requestId, details.url, 0).catch(report("cookie capture cleanup failed"));
-}, cookieFilter);
-
 function observe(tabId: number, address: string | undefined): void {
   if (tabId >= 0) manager.observe(tabId, address).catch(report("observe failed"));
 }
@@ -192,14 +179,14 @@ function armResume(tabId: number): void {
   );
 }
 
-browser.webRequest.onBeforeRedirect.addListener((details) => {
+const redirected = (details: WebRequest.OnBeforeRedirectDetailsType): void => {
   manager.requestCompleted(details.tabId, details.requestId, details.url, details.statusCode).catch(report("redirect cleanup failed"));
   observe(details.tabId, details.redirectUrl);
-}, filter);
-browser.webRequest.onBeforeRequest.addListener((details) => {
+};
+const requested = (details: WebRequest.OnBeforeRequestDetailsType): void => {
   observe(details.tabId, details.url);
-}, filter);
-browser.webRequest.onCompleted.addListener((details) => {
+};
+const completed = (details: WebRequest.OnCompletedDetailsType): void => {
   const tabId = details.tabId;
   if (tabId < 0 || !isResumeTrigger(details)) return;
   manager
@@ -208,7 +195,41 @@ browser.webRequest.onCompleted.addListener((details) => {
       if (watching) armResume(tabId);
     })
     .catch(report("resume check failed"));
-}, filter);
+};
+const cookieCompleted = (details: WebRequest.OnCompletedDetailsType): void => {
+  manager.requestCompleted(details.tabId, details.requestId, details.url, details.statusCode).catch(report("cookie capture completion failed"));
+};
+const cookieFailed = (details: WebRequest.OnErrorOccurredDetailsType): void => {
+  manager.requestCompleted(details.tabId, details.requestId, details.url, 0).catch(report("cookie capture cleanup failed"));
+};
+
+/**
+ * Chromium rejects webRequest listeners while the extension holds no host permission at all, and
+ * never retries them. All host access is optional (granted on approval), so a worker started
+ * before any grant would never see the sign-in tab's requests: register again on every grant.
+ */
+function listenWebRequests(): void {
+  const events = browser.webRequest;
+  events.onBeforeRedirect.removeListener(redirected);
+  events.onBeforeRequest.removeListener(requested);
+  events.onCompleted.removeListener(completed);
+  events.onBeforeSendHeaders.removeListener(cookieHeaders);
+  events.onCompleted.removeListener(cookieCompleted);
+  events.onErrorOccurred.removeListener(cookieFailed);
+  events.onBeforeRedirect.addListener(redirected, filter);
+  events.onBeforeRequest.addListener(requested, filter);
+  events.onCompleted.addListener(completed, filter);
+  // Chromium hides Cookie unless extraHeaders is requested. Firefox does not support that flag.
+  try {
+    events.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders", "extraHeaders"]);
+  } catch {
+    events.onBeforeSendHeaders.addListener(cookieHeaders, cookieFilter, ["requestHeaders"]);
+  }
+  events.onCompleted.addListener(cookieCompleted, cookieFilter);
+  events.onErrorOccurred.addListener(cookieFailed, cookieFilter);
+}
+listenWebRequests();
+browser.permissions.onAdded.addListener(listenWebRequests);
 
 browser.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId === 0) observe(details.tabId, details.url);
